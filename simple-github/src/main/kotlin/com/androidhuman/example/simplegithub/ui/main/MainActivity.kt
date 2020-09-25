@@ -14,8 +14,9 @@ class MainActivity : AppCompatActivity() {
         setContentView(R.layout.activity_main)
 
         btnActivityMainSearch.setOnClickListener {
-            startActivity(Intent(
-                    this@MainActivity, SearchActivity::class.java))
+            startActivity(
+                Intent(this@MainActivity, SearchActivity::class.java)
+            )
         }
     }
 }

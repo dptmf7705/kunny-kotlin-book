@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.GithubApi
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.provideGithubApi
 import com.androidhuman.example.simplegithub.ui.GlideApp
@@ -18,29 +17,41 @@ import java.util.*
 
 class RepositoryActivity : AppCompatActivity() {
 
-    internal lateinit var api: GithubApi
+    companion object {
 
-    internal lateinit var repoCall: Call<GithubRepo>
+        const val KEY_USER_LOGIN = "user_login"
 
-    internal var dateFormatInResponse = SimpleDateFormat(
-            "yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault())
-    internal var dateFormatToShow = SimpleDateFormat(
-            "yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+        const val KEY_REPO_NAME = "repo_name"
+    }
+
+    internal val api by lazy { provideGithubApi(this@RepositoryActivity) }
+
+    internal var repoCall: Call<GithubRepo>? = null
+
+    internal val dateFormatInResponse = SimpleDateFormat(
+        "yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault()
+    )
+
+    internal val dateFormatToShow = SimpleDateFormat(
+        "yyyy-MM-dd HH:mm:ss", Locale.getDefault()
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_repository)
 
-        api = provideGithubApi(this)
-
         val login = intent.getStringExtra(KEY_USER_LOGIN)
-                ?: throw IllegalArgumentException(
-                        "No login info exists in extras")
+            ?: throw IllegalArgumentException("No login info exists in extras")
+
         val repo = intent.getStringExtra(KEY_REPO_NAME)
-                ?: throw IllegalArgumentException(
-                        "No repo info exists in extras")
+            ?: throw IllegalArgumentException("No repo info exists in extras")
 
         showRepositoryInfo(login, repo)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        repoCall?.run { cancel() }
     }
 
     private fun showRepositoryInfo(login: String, repoName: String) {
@@ -48,20 +59,23 @@ class RepositoryActivity : AppCompatActivity() {
 
         repoCall = api.getRepository(login, repoName)
 
-        repoCall.enqueue(object : Callback<GithubRepo?> {
-            override fun onResponse(call: Call<GithubRepo?>,
-                                    response: Response<GithubRepo?>) {
+        repoCall!!.enqueue(object : Callback<GithubRepo> {
+            override fun onResponse(
+                call: Call<GithubRepo>,
+                response: Response<GithubRepo>
+            ) {
                 hideProgress(true)
 
                 val repo = response.body()
                 if (response.isSuccessful && null != repo) {
                     GlideApp.with(this@RepositoryActivity)
-                            .load(repo.owner.avatarUrl)
-                            .into(ivActivityRepositoryProfile)
+                        .load(repo.owner.avatarUrl)
+                        .into(ivActivityRepositoryProfile)
 
                     tvActivityRepositoryName.text = repo.fullName
                     tvActivityRepositoryStars.text = resources
-                            .getQuantityString(R.plurals.star, repo.stars, repo.stars)
+                        .getQuantityString(R.plurals.star, repo.stars, repo.stars)
+
                     if (null == repo.description) {
                         tvActivityRepositoryDescription.setText(R.string.no_description_provided)
                     } else {
@@ -85,7 +99,7 @@ class RepositoryActivity : AppCompatActivity() {
                 }
             }
 
-            override fun onFailure(call: Call<GithubRepo?>, t: Throwable) {
+            override fun onFailure(call: Call<GithubRepo>, t: Throwable) {
                 hideProgress(false)
                 showError(t.message)
             }
@@ -103,14 +117,9 @@ class RepositoryActivity : AppCompatActivity() {
     }
 
     private fun showError(message: String?) {
-        tvActivityRepositoryMessage.text = message ?: "Unexpected error."
-        tvActivityRepositoryMessage.visibility = View.VISIBLE
-    }
-
-    companion object {
-
-        const val KEY_USER_LOGIN = "user_login"
-
-        const val KEY_REPO_NAME = "repo_name"
+        with(tvActivityRepositoryMessage) {
+            text = message ?: "Unexpected error."
+            visibility = View.VISIBLE
+        }
     }
 }

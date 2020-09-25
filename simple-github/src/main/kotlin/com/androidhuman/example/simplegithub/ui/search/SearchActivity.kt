@@ -10,7 +10,6 @@ import android.view.MenuItem
 import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.GithubApi
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.model.RepoSearchResponse
 import com.androidhuman.example.simplegithub.api.provideGithubApi
@@ -27,46 +26,62 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
 
     internal lateinit var searchView: SearchView
 
-    internal lateinit var adapter: SearchAdapter
+    internal val adapter by lazy {
+        SearchAdapter().apply { setItemClickListener(this@SearchActivity) }
+    }
 
-    internal lateinit var api: GithubApi
+    internal val api by lazy { provideGithubApi(this@SearchActivity) }
 
-    internal lateinit var searchCall: Call<RepoSearchResponse>
+    internal var searchCall: Call<RepoSearchResponse>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
 
-        adapter = SearchAdapter()
-        adapter.setItemClickListener(this)
+        with(rvActivitySearchList) {
+            layoutManager = LinearLayoutManager(this@SearchActivity)
+            adapter = adapter
+        }
+    }
 
-        rvActivitySearchList.layoutManager = LinearLayoutManager(this)
-        rvActivitySearchList.adapter = adapter
-
-        api = provideGithubApi(this)
+    override fun onStop() {
+        super.onStop()
+        searchCall?.run { cancel() }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_activity_search, menu)
         menuSearch = menu.findItem(R.id.menu_activity_search_query)
 
-        searchView = menuSearch.actionView as SearchView
+        searchView = (menuSearch.actionView as SearchView).apply {
+            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String): Boolean {
+                    updateTitle(query)
+                    hideSoftKeyboard()
+                    collapseSearchView()
+                    searchRepository(query)
+                    return true
+                }
 
-        searchView.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String): Boolean {
-                updateTitle(query)
-                hideSoftKeyboard()
-                collapseSearchView()
-                searchRepository(query)
-                return true
-            }
+                override fun onQueryTextChange(newText: String): Boolean {
+                    return false
+                }
+            })
+        }
 
-            override fun onQueryTextChange(newText: String): Boolean {
-                return false
-            }
-        })
+        with(menuSearch) {
+            setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+                override fun onMenuItemActionExpand(item: MenuItem?) = true
 
-        menuSearch.expandActionView()
+                override fun onMenuItemActionCollapse(item: MenuItem?): Boolean {
+                    if ("" == searchView.query) {
+                        finish()
+                    }
+                    return true
+                }
+            })
+            expandActionView()
+        }
 
         return true
     }
@@ -80,9 +95,10 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
     }
 
     override fun onItemClick(repository: GithubRepo) {
-        val intent = Intent(this, RepositoryActivity::class.java)
-        intent.putExtra(RepositoryActivity.KEY_USER_LOGIN, repository.owner.login)
-        intent.putExtra(RepositoryActivity.KEY_REPO_NAME, repository.name)
+        val intent = Intent(this, RepositoryActivity::class.java).apply {
+            putExtra(RepositoryActivity.KEY_USER_LOGIN, repository.owner.login)
+            putExtra(RepositoryActivity.KEY_REPO_NAME, repository.name)
+        }
         startActivity(intent)
     }
 
@@ -92,16 +108,19 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
         showProgress()
 
         searchCall = api.searchRepository(query)
-
-        searchCall.enqueue(object : Callback<RepoSearchResponse?> {
-            override fun onResponse(call: Call<RepoSearchResponse?>,
-                                    response: Response<RepoSearchResponse?>) {
+        searchCall!!.enqueue(object : Callback<RepoSearchResponse> {
+            override fun onResponse(
+                call: Call<RepoSearchResponse>,
+                response: Response<RepoSearchResponse>
+            ) {
                 hideProgress()
 
                 val searchResult = response.body()
                 if (response.isSuccessful && null != searchResult) {
-                    adapter.setItems(searchResult.items)
-                    adapter.notifyDataSetChanged()
+                    with(adapter) {
+                        setItems(searchResult.items)
+                        notifyDataSetChanged()
+                    }
 
                     if (0 == searchResult.totalCount) {
                         showError(getString(R.string.no_search_result))
@@ -111,7 +130,7 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
                 }
             }
 
-            override fun onFailure(call: Call<RepoSearchResponse?>, t: Throwable) {
+            override fun onFailure(call: Call<RepoSearchResponse>, t: Throwable) {
                 hideProgress()
                 showError(t.message)
             }
@@ -119,15 +138,13 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
     }
 
     private fun updateTitle(query: String) {
-        val ab = supportActionBar
-        if (null != ab) {
-            ab.subtitle = query
-        }
+        supportActionBar?.run { subtitle = query }
     }
 
     private fun hideSoftKeyboard() {
-        val imm = getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager
-        imm.hideSoftInputFromWindow(searchView.windowToken, 0)
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager).run {
+            hideSoftInputFromWindow(searchView.windowToken, 0)
+        }
     }
 
     private fun collapseSearchView() {
@@ -135,8 +152,10 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
     }
 
     private fun clearResults() {
-        adapter.clearItems()
-        adapter.notifyDataSetChanged()
+        with(adapter) {
+            clearItems()
+            notifyDataSetChanged()
+        }
     }
 
     private fun showProgress() {
@@ -148,12 +167,16 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
     }
 
     private fun showError(message: String?) {
-        tvActivitySearchMessage.text = message ?: "Unexpected error."
-        tvActivitySearchMessage.visibility = View.VISIBLE
+        with(tvActivitySearchMessage) {
+            text = message ?: "Unexpected error."
+            visibility = View.VISIBLE
+        }
     }
 
     private fun hideError() {
-        tvActivitySearchMessage.text = ""
-        tvActivitySearchMessage.visibility = View.GONE
+        with(tvActivitySearchMessage) {
+            text = ""
+            visibility = View.GONE
+        }
     }
 }

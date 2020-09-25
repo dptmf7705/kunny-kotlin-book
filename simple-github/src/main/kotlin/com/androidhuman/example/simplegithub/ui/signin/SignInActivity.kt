@@ -9,7 +9,6 @@ import android.view.View
 import android.widget.Toast
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.AuthApi
 import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
@@ -21,11 +20,14 @@ import retrofit2.Response
 
 class SignInActivity : AppCompatActivity() {
 
-    internal lateinit var api: AuthApi
+    internal val api by lazy { provideAuthApi() }
 
-    internal lateinit var authTokenProvider: AuthTokenProvider
+    internal val authTokenProvider by lazy { AuthTokenProvider(this) }
 
-    internal lateinit var accessTokenCall: Call<GithubAccessToken>
+    // API 반환되는 값으로 초기화
+    // API 호출 되기 전까지는 초기화 되어있지 않음
+    // 명시적으로 널 값을 허용하도록 하는 것이 더 안전함
+    internal var accessTokenCall: Call<GithubAccessToken>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,21 +35,24 @@ class SignInActivity : AppCompatActivity() {
 
         btnActivitySignInStart.setOnClickListener {
             val authUri = Uri.Builder().scheme("https").authority("github.com")
-                    .appendPath("login")
-                    .appendPath("oauth")
-                    .appendPath("authorize")
-                    .appendQueryParameter("client_id", BuildConfig.GITHUB_CLIENT_ID)
-                    .build()
+                .appendPath("login")
+                .appendPath("oauth")
+                .appendPath("authorize")
+                .appendQueryParameter("client_id", BuildConfig.GITHUB_CLIENT_ID)
+                .build()
             CustomTabsIntent.Builder().build()
-                    .launchUrl(this@SignInActivity, authUri)
+                .launchUrl(this@SignInActivity, authUri)
         }
-
-        api = provideAuthApi()
-        authTokenProvider = AuthTokenProvider(this)
 
         if (null != authTokenProvider.token) {
             launchMainActivity()
         }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        // API 호출 객체가 생성되어 있다면 요청을 취소한다.
+        accessTokenCall?.run { cancel() }
     }
 
     /**
@@ -61,7 +66,7 @@ class SignInActivity : AppCompatActivity() {
         val uri = intent.data ?: throw IllegalArgumentException("No data exists")
 
         val code = uri.getQueryParameter("code")
-                ?: throw IllegalStateException("No code exists")
+            ?: throw IllegalStateException("No code exists")
 
         getAccessToken(code)
     }
@@ -70,13 +75,16 @@ class SignInActivity : AppCompatActivity() {
         showProgress()
 
         accessTokenCall = api.getAccessToken(
-                BuildConfig.GITHUB_CLIENT_ID,
-                BuildConfig.GITHUB_CLIENT_SECRET,
-                code)
+            BuildConfig.GITHUB_CLIENT_ID,
+            BuildConfig.GITHUB_CLIENT_SECRET,
+            code
+        )
 
-        accessTokenCall.enqueue(object : Callback<GithubAccessToken?> {
-            override fun onResponse(call: Call<GithubAccessToken?>,
-                                    response: Response<GithubAccessToken?>) {
+        accessTokenCall!!.enqueue(object : Callback<GithubAccessToken> {
+            override fun onResponse(
+                call: Call<GithubAccessToken>,
+                response: Response<GithubAccessToken>
+            ) {
                 hideProgress()
 
                 val token = response.body()
@@ -85,12 +93,15 @@ class SignInActivity : AppCompatActivity() {
 
                     launchMainActivity()
                 } else {
-                    showError(IllegalStateException(
-                            "Not successful: ${response.message()}"))
+                    showError(
+                        IllegalStateException(
+                            "Not successful: ${response.message()}"
+                        )
+                    )
                 }
             }
 
-            override fun onFailure(call: Call<GithubAccessToken?>, t: Throwable) {
+            override fun onFailure(call: Call<GithubAccessToken>, t: Throwable) {
                 hideProgress()
                 showError(t)
             }
@@ -112,9 +123,12 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun launchMainActivity() {
-        startActivity(Intent(
-                this@SignInActivity, MainActivity::class.java)
+        startActivity(
+            Intent(
+                this@SignInActivity, MainActivity::class.java
+            )
                 .addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
     }
 }
