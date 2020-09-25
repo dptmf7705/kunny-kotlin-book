@@ -10,64 +10,59 @@ import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 import java.io.IOException
 
-object GithubApiProvider {
+fun provideAuthApi(): AuthApi = Retrofit.Builder()
+    .baseUrl("https://github.com/")
+    .client(provideOkHttpClient(provideLoggingInterceptor(), null))
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
+    .create(AuthApi::class.java)
 
-    fun provideAuthApi(): AuthApi {
-        return Retrofit.Builder()
-                .baseUrl("https://github.com/")
-                .client(provideOkHttpClient(provideLoggingInterceptor(), null))
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(AuthApi::class.java)
-    }
+fun provideGithubApi(context: Context): GithubApi = Retrofit.Builder()
+    .baseUrl("https://api.github.com/")
+    .client(
+        provideOkHttpClient(
+            provideLoggingInterceptor(),
+            provideAuthInterceptor(provideAuthTokenProvider(context))
+        )
+    )
+    .addConverterFactory(GsonConverterFactory.create())
+    .build()
+    .create(GithubApi::class.java)
 
-    fun provideGithubApi(context: Context): GithubApi {
-        return Retrofit.Builder()
-                .baseUrl("https://api.github.com/")
-                .client(provideOkHttpClient(provideLoggingInterceptor(),
-                        provideAuthInterceptor(provideAuthTokenProvider(context))))
-                .addConverterFactory(GsonConverterFactory.create())
-                .build()
-                .create(GithubApi::class.java)
-    }
-
-    private fun provideOkHttpClient(
-            interceptor: HttpLoggingInterceptor,
-            authInterceptor: AuthInterceptor?): OkHttpClient {
-        val b = OkHttpClient.Builder()
+private fun provideOkHttpClient(
+    interceptor: HttpLoggingInterceptor,
+    authInterceptor: AuthInterceptor?
+): OkHttpClient = OkHttpClient.Builder()
+    .run {
         if (null != authInterceptor) {
-            b.addInterceptor(authInterceptor)
+            addInterceptor(authInterceptor)
         }
-        b.addInterceptor(interceptor)
-        return b.build()
+        addInterceptor(interceptor)
+        build()
     }
 
-    private fun provideLoggingInterceptor(): HttpLoggingInterceptor {
-        val interceptor = HttpLoggingInterceptor()
-        interceptor.level = HttpLoggingInterceptor.Level.BODY
-        return interceptor
+private fun provideLoggingInterceptor(): HttpLoggingInterceptor =
+    HttpLoggingInterceptor().apply {
+        level = HttpLoggingInterceptor.Level.BODY
     }
 
-    private fun provideAuthInterceptor(provider: AuthTokenProvider): AuthInterceptor {
-        val token = provider.token ?: throw IllegalStateException("authToken cannot be null.")
-        return AuthInterceptor(token)
-    }
+private fun provideAuthInterceptor(provider: AuthTokenProvider): AuthInterceptor {
+    val token = provider.token ?: throw IllegalStateException("authToken cannot be null.")
+    return AuthInterceptor(token)
+}
 
-    private fun provideAuthTokenProvider(context: Context): AuthTokenProvider {
-        return AuthTokenProvider(context.applicationContext)
-    }
+private fun provideAuthTokenProvider(context: Context): AuthTokenProvider =
+    AuthTokenProvider(context.applicationContext)
 
-    internal class AuthInterceptor(private val token: String) : Interceptor {
+internal class AuthInterceptor(private val token: String) : Interceptor {
 
-        @Throws(IOException::class)
-        override fun intercept(chain: Interceptor.Chain): Response {
-            val original = chain.request()
-
-            val b = original.newBuilder()
-                    .addHeader("Authorization", "token $token")
-
-            val request = b.build()
-            return chain.proceed(request)
+    @Throws(IOException::class)
+    override fun intercept(chain: Interceptor.Chain): Response =
+        with(chain) {
+            val newRequest = request().newBuilder().run {
+                addHeader("Authorization", "token $token")
+                build()
+            }
+            proceed(newRequest)
         }
-    }
 }

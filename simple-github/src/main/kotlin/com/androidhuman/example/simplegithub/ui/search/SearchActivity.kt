@@ -11,9 +11,9 @@ import android.view.View
 import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.GithubApi
-import com.androidhuman.example.simplegithub.api.GithubApiProvider
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.model.RepoSearchResponse
+import com.androidhuman.example.simplegithub.api.provideGithubApi
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchAdapter.ItemClickListener
 import kotlinx.android.synthetic.main.activity_search.*
@@ -43,7 +43,7 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
         rvActivitySearchList.layoutManager = LinearLayoutManager(this)
         rvActivitySearchList.adapter = adapter
 
-        api = GithubApiProvider.provideGithubApi(this)
+        api = provideGithubApi(this)
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {

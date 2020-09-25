@@ -10,8 +10,8 @@ import android.widget.Toast
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.AuthApi
-import com.androidhuman.example.simplegithub.api.GithubApiProvider
 import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
+import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
 import kotlinx.android.synthetic.main.activity_sign_in.*
@@ -42,7 +42,7 @@ class SignInActivity : AppCompatActivity() {
                     .launchUrl(this@SignInActivity, authUri)
         }
 
-        api = GithubApiProvider.provideAuthApi()
+        api = provideAuthApi()
         authTokenProvider = AuthTokenProvider(this)
 
         if (null != authTokenProvider.token) {
