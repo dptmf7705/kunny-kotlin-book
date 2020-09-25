@@ -14,6 +14,7 @@ import com.androidhuman.example.simplegithub.api.provideGithubApi
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchAdapter.ItemClickListener
+import com.jakewharton.rxbinding2.support.v7.widget.queryTextChangeEvents
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -32,8 +33,11 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
 
     internal val api by lazy { provideGithubApi(this@SearchActivity) }
 
-    //    internal var searchCall: Call<RepoSearchResponse>? = null
     internal val disposables = CompositeDisposable()
+
+    // 뷰 이벤트에 대한 disposable 객체는 따로 관리
+    // 액티비티가 완전 종료되기 전까지 계속 처리해야 함
+    internal val viewDisposables = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -47,29 +51,35 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
 
     override fun onStop() {
         super.onStop()
-//        searchCall?.run { cancel() }
         disposables.clear()
+        // 액티비티가 종료되고 있는 경우에만 clear
+        // 그 외 화면 꺼짐, 다른 액티비티 실행 등의 경우는 해제하지 않음
+        if (isFinishing) {
+            viewDisposables.clear()
+        }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menuInflater.inflate(R.menu.menu_activity_search, menu)
+
         menuSearch = menu.findItem(R.id.menu_activity_search_query)
+        searchView = menuSearch.actionView as SearchView
 
-        searchView = (menuSearch.actionView as SearchView).apply {
-            setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String): Boolean {
-                    updateTitle(query)
-                    hideSoftKeyboard()
-                    collapseSearchView()
-                    searchRepository(query)
-                    return true
-                }
-
-                override fun onQueryTextChange(newText: String): Boolean {
-                    return false
-                }
-            })
-        }
+        viewDisposables += searchView.queryTextChangeEvents()
+            // 검색 버튼이 눌렸을 때만 이벤트 처리
+            .filter { it.isSubmitted }
+            // 이벤트에서 검색에 텍스트 추출
+            .map { it.queryText() }
+            // 빈 문자열이 아닌 경우만 처리
+            .filter { it.isNotEmpty() }
+            .map { it.toString() }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                updateTitle(it)
+                hideSoftKeyboard()
+                collapseSearchView()
+                searchRepository(it)
+            }
 
         with(menuSearch) {
             setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
