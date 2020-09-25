@@ -8,18 +8,16 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.model.GithubAccessToken
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import kotlinx.android.synthetic.main.activity_sign_in.*
 import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
 import org.jetbrains.anko.longToast
 import org.jetbrains.anko.newTask
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 
 class SignInActivity : AppCompatActivity() {
 
@@ -30,7 +28,9 @@ class SignInActivity : AppCompatActivity() {
     // API 반환되는 값으로 초기화
     // API 호출 되기 전까지는 초기화 되어있지 않음
     // 명시적으로 널 값을 허용하도록 하는 것이 더 안전함
-    internal var accessTokenCall: Call<GithubAccessToken>? = null
+    //    internal var accessTokenCall: Call<GithubAccessToken>? = null
+    // call 대신 rx Observable 사용
+    internal val disposables = CompositeDisposable()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,7 +55,9 @@ class SignInActivity : AppCompatActivity() {
     override fun onStop() {
         super.onStop()
         // API 호출 객체가 생성되어 있다면 요청을 취소한다.
-        accessTokenCall?.run { cancel() }
+//        accessTokenCall?.run { cancel() }
+        // 디스포저블 객체 모두 해제
+        disposables.clear()
     }
 
     /**
@@ -75,40 +77,20 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun getAccessToken(code: String) {
-        showProgress()
-
-        accessTokenCall = api.getAccessToken(
-            BuildConfig.GITHUB_CLIENT_ID,
-            BuildConfig.GITHUB_CLIENT_SECRET,
-            code
-        )
-
-        accessTokenCall!!.enqueue(object : Callback<GithubAccessToken> {
-            override fun onResponse(
-                call: Call<GithubAccessToken>,
-                response: Response<GithubAccessToken>
-            ) {
-                hideProgress()
-
-                val token = response.body()
-                if (response.isSuccessful && null != token) {
-                    authTokenProvider.updateToken(token.accessToken)
-
-                    launchMainActivity()
-                } else {
-                    showError(
-                        IllegalStateException(
-                            "Not successful: ${response.message()}"
-                        )
-                    )
-                }
-            }
-
-            override fun onFailure(call: Call<GithubAccessToken>, t: Throwable) {
-                hideProgress()
-                showError(t)
-            }
-        })
+        disposables.add(api
+            .getAccessToken(
+                BuildConfig.GITHUB_CLIENT_ID,
+                BuildConfig.GITHUB_CLIENT_SECRET,
+                code
+            )
+            .map { it.accessToken }
+            .observeOn(AndroidSchedulers.mainThread())
+            .doOnSubscribe { showProgress() }
+            .doOnTerminate { hideProgress() }
+            .subscribe({
+                authTokenProvider.updateToken(it)
+                launchMainActivity()
+            }) { showError(it) })
     }
 
     private fun showProgress() {
