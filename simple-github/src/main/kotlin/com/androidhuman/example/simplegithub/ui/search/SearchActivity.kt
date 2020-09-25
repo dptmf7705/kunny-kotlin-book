@@ -11,13 +11,13 @@ import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchAdapter.ItemClickListener
 import com.jakewharton.rxbinding2.support.v7.widget.queryTextChangeEvents
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import kotlinx.android.synthetic.main.activity_search.*
 import org.jetbrains.anko.startActivity
 
@@ -33,29 +33,26 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
 
     internal val api by lazy { provideGithubApi(this@SearchActivity) }
 
-    internal val disposables = CompositeDisposable()
+    internal val disposables = AutoClearedDisposable(this)
 
     // 뷰 이벤트에 대한 disposable 객체는 따로 관리
     // 액티비티가 완전 종료되기 전까지 계속 처리해야 함
-    internal val viewDisposables = CompositeDisposable()
+    internal val viewDisposables = AutoClearedDisposable(
+        lifecycleOwner = this,
+        alwaysClearOnStop = false
+    )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
 
+        // 라이프사이클 옵저버 등록
+        lifecycle += disposables
+        lifecycle += viewDisposables
+
         with(rvActivitySearchList) {
             layoutManager = LinearLayoutManager(this@SearchActivity)
             adapter = this@SearchActivity.adapter
-        }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        disposables.clear()
-        // 액티비티가 종료되고 있는 경우에만 clear
-        // 그 외 화면 꺼짐, 다른 액티비티 실행 등의 경우는 해제하지 않음
-        if (isFinishing) {
-            viewDisposables.clear()
         }
     }
 

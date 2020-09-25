@@ -10,10 +10,10 @@ import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
+import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
 import io.reactivex.android.schedulers.AndroidSchedulers
-import io.reactivex.disposables.CompositeDisposable
 import kotlinx.android.synthetic.main.activity_sign_in.*
 import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
@@ -26,16 +26,14 @@ class SignInActivity : AppCompatActivity() {
 
     internal val authTokenProvider by lazy { AuthTokenProvider(this) }
 
-    // API 반환되는 값으로 초기화
-    // API 호출 되기 전까지는 초기화 되어있지 않음
-    // 명시적으로 널 값을 허용하도록 하는 것이 더 안전함
-    //    internal var accessTokenCall: Call<GithubAccessToken>? = null
-    // call 대신 rx Observable 사용
-    internal val disposables = CompositeDisposable()
+    internal val disposables = AutoClearedDisposable(this)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
+
+        // AutoClearedDisposable 객체를 라이프 사이클 옵저버로 등록
+        lifecycle += disposables
 
         btnActivitySignInStart.setOnClickListener {
             val authUri = Uri.Builder().scheme("https").authority("github.com")
@@ -51,14 +49,6 @@ class SignInActivity : AppCompatActivity() {
         if (null != authTokenProvider.token) {
             launchMainActivity()
         }
-    }
-
-    override fun onStop() {
-        super.onStop()
-        // API 호출 객체가 생성되어 있다면 요청을 취소한다.
-//        accessTokenCall?.run { cancel() }
-        // 디스포저블 객체 모두 해제
-        disposables.clear()
     }
 
     /**
