@@ -10,6 +10,7 @@ import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.provideAuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -77,7 +78,7 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun getAccessToken(code: String) {
-        disposables.add(api
+        disposables += api
             .getAccessToken(
                 BuildConfig.GITHUB_CLIENT_ID,
                 BuildConfig.GITHUB_CLIENT_SECRET,
@@ -90,7 +91,7 @@ class SignInActivity : AppCompatActivity() {
             .subscribe({
                 authTokenProvider.updateToken(it)
                 launchMainActivity()
-            }) { showError(it) })
+            }) { showError(it) }
     }
 
     private fun showProgress() {

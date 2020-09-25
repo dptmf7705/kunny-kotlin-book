@@ -5,6 +5,7 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.GlideApp
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
@@ -55,7 +56,7 @@ class RepositoryActivity : AppCompatActivity() {
     }
 
     private fun showRepositoryInfo(login: String, repoName: String) {
-        disposables.add(api.getRepository(login, repoName)
+        disposables += api.getRepository(login, repoName)
             .observeOn(AndroidSchedulers.mainThread())
             .doOnSubscribe { showProgress() }
             .doOnError { hideProgress(false) }
@@ -74,6 +75,7 @@ class RepositoryActivity : AppCompatActivity() {
                 } else {
                     tvActivityRepositoryDescription.text = repo.description
                 }
+
                 if (null == repo.language) {
                     tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
                 } else {
@@ -85,9 +87,10 @@ class RepositoryActivity : AppCompatActivity() {
                     tvActivityRepositoryLastUpdate.text =
                         dateFormatToShow.format(lastUpdate)
                 } catch (e: ParseException) {
-                    tvActivityRepositoryLastUpdate.text = getString(R.string.unknown)
+                    tvActivityRepositoryLastUpdate.text =
+                        getString(R.string.unknown)
                 }
-            }) { showError(it.message) })
+            }) { showError(it.message) }
     }
 
     private fun showProgress() {

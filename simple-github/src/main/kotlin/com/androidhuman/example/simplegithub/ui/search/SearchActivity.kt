@@ -11,6 +11,7 @@ import android.view.inputmethod.InputMethodManager
 import com.androidhuman.example.simplegithub.R
 import com.androidhuman.example.simplegithub.api.model.GithubRepo
 import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchAdapter.ItemClickListener
 import io.reactivex.Observable
@@ -103,7 +104,7 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
     }
 
     private fun searchRepository(query: String) {
-        disposables.add(api.searchRepository(query)
+        disposables += api.searchRepository(query)
             .flatMap {
                 if (0 == it.totalCount) {
                     Observable.error(IllegalStateException("No search Result"))
@@ -123,7 +124,7 @@ class SearchActivity : AppCompatActivity(), ItemClickListener {
                     setItems(it)
                     notifyDataSetChanged()
                 }
-            }) { showError(it.message) })
+            }) { showError(it.message) }
     }
 
     private fun updateTitle(query: String) {
