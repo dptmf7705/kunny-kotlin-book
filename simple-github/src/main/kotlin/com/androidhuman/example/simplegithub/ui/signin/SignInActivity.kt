@@ -1,5 +1,6 @@
 package com.androidhuman.example.simplegithub.ui.signin
 
+import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
@@ -22,18 +23,30 @@ import org.jetbrains.anko.newTask
 
 class SignInActivity : AppCompatActivity() {
 
-    internal val api by lazy { provideAuthApi() }
-
-    internal val authTokenProvider by lazy { AuthTokenProvider(this) }
-
     internal val disposables = AutoClearedDisposable(this)
+
+    internal val viewDisposable = AutoClearedDisposable(
+        lifecycleOwner = this,
+        alwaysClearOnStop = false
+    )
+
+    internal val viewModelFactory by lazy {
+        SignInViewModelFactory(provideAuthApi(), AuthTokenProvider(this))
+    }
+
+    lateinit var viewModel: SignInViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
 
+        viewModel = ViewModelProviders.of(
+            this, viewModelFactory
+        )[SignInViewModel::class.java]
+
         // AutoClearedDisposable 객체를 라이프 사이클 옵저버로 등록
         lifecycle += disposables
+        lifecycle += viewDisposable
 
         btnActivitySignInStart.setOnClickListener {
             val authUri = Uri.Builder().scheme("https").authority("github.com")
@@ -46,9 +59,26 @@ class SignInActivity : AppCompatActivity() {
                 .launchUrl(this@SignInActivity, authUri)
         }
 
-        if (null != authTokenProvider.token) {
-            launchMainActivity()
-        }
+        // 엑세스 토큰 이벤트 구독
+        viewDisposable += viewModel.accessToken
+            .filter { it.isNotEmpty }
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { launchMainActivity() }
+
+        // 에러 메시지 이벤트 구독
+        viewDisposable += viewModel.message
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showError(it) }
+
+        // 작업 진행 여부 이벤트 구독
+        viewDisposable += viewModel.isLoading
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it) showProgress()
+                else hideProgress()
+            }
+
+        disposables += viewModel.loadAccessToken()
     }
 
     /**
@@ -68,20 +98,11 @@ class SignInActivity : AppCompatActivity() {
     }
 
     private fun getAccessToken(code: String) {
-        disposables += api
-            .getAccessToken(
-                BuildConfig.GITHUB_CLIENT_ID,
-                BuildConfig.GITHUB_CLIENT_SECRET,
-                code
-            )
-            .map { it.accessToken }
-            .observeOn(AndroidSchedulers.mainThread())
-            .doOnSubscribe { showProgress() }
-            .doOnTerminate { hideProgress() }
-            .subscribe({
-                authTokenProvider.updateToken(it)
-                launchMainActivity()
-            }) { showError(it) }
+        disposables += viewModel.requestAccessToken(
+            BuildConfig.GITHUB_CLIENT_ID,
+            BuildConfig.GITHUB_CLIENT_SECRET,
+            code
+        )
     }
 
     private fun showProgress() {
@@ -94,8 +115,8 @@ class SignInActivity : AppCompatActivity() {
         pbActivitySignIn.visibility = View.GONE
     }
 
-    private fun showError(throwable: Throwable) {
-        longToast(throwable.message ?: "No message available")
+    private fun showError(message: String) {
+        longToast(message)
     }
 
     private fun launchMainActivity() {

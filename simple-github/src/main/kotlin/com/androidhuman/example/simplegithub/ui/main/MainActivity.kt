@@ -1,5 +1,6 @@
 package com.androidhuman.example.simplegithub.ui.main
 
+import android.arch.lifecycle.ViewModelProviders
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
@@ -12,7 +13,6 @@ import com.androidhuman.example.simplegithub.data.provideSearchHistoryDao
 import com.androidhuman.example.simplegithub.extensions.AutoActivatedDisposable
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
-import com.androidhuman.example.simplegithub.extensions.runOnIOScheduler
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchActivity
 import com.androidhuman.example.simplegithub.ui.search.SearchAdapter
@@ -24,26 +24,44 @@ import org.jetbrains.anko.startActivity
 class MainActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     internal val adapter by lazy {
-        SearchAdapter().apply {
-            setItemClickListener(this@MainActivity)
-        }
-    }
-
-    internal val searchHistoryDao by lazy {
-        provideSearchHistoryDao(this)
+        SearchAdapter().apply { setItemClickListener(this@MainActivity) }
     }
 
     internal val disposables = AutoClearedDisposable(this)
 
-    internal val autoActivatedDisposable =
-        AutoActivatedDisposable(this) { fetchSearchHistory() }
+    internal val viewDisposable = AutoClearedDisposable(
+        lifecycleOwner = this,
+        alwaysClearOnStop = false
+    )
+
+    internal val viewModelFactory by lazy {
+        MainViewModelFactory(provideSearchHistoryDao(this))
+    }
+
+    lateinit var viewModel: MainViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        viewModel = ViewModelProviders.of(
+            this, viewModelFactory
+        )[MainViewModel::class.java]
+
         lifecycle += disposables
-        lifecycle += autoActivatedDisposable
+        lifecycle += viewDisposable
+        lifecycle += AutoActivatedDisposable(this) {
+            viewModel.searchHistory
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe {
+                    with(adapter) {
+                        if (it.isNotEmpty) setItems(it.value)
+                        else clearItems()
+                        notifyDataSetChanged()
+                    }
+                }
+        }
 
         btnActivityMainSearch.setOnClickListener {
             startActivity<SearchActivity>()
@@ -53,6 +71,13 @@ class MainActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
             layoutManager = LinearLayoutManager(this@MainActivity)
             adapter = this@MainActivity.adapter
         }
+
+        viewDisposable += viewModel.message
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it.isNotEmpty) showMessage(it.value)
+                else hideMessage()
+            }
     }
 
     override fun onCreateOptionsMenu(menu: Menu?): Boolean {
@@ -62,35 +87,15 @@ class MainActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         if (R.id.menu_activity_main_clear_all == item.itemId) {
-            clearAll()
-            return true;
+            disposables += viewModel.clearSearchHistory()
+            return true
         }
         return super.onOptionsItemSelected(item)
     }
 
-    private fun clearAll() {
-        disposables += runOnIOScheduler { searchHistoryDao.clearAll() }
-    }
-
-    private fun fetchSearchHistory() = searchHistoryDao.getHistory()
-        .subscribeOn(Schedulers.io())
-        .observeOn(AndroidSchedulers.mainThread())
-        .subscribe({
-            with(adapter) {
-                setItems(it)
-                notifyDataSetChanged()
-            }
-
-            if (it.isEmpty()) {
-                showMessage(getString(R.string.no_recent_repositories))
-            } else {
-                hideMessage()
-            }
-        }) { showMessage(it.message) }
-
-    private fun showMessage(message: String?) =
+    private fun showMessage(message: String) =
         with(tvActivityMainMessage) {
-            text = message ?: "Unexpected error."
+            text = message
             visibility = View.VISIBLE
         }
 

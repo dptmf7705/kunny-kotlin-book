@@ -1,5 +1,6 @@
 package com.androidhuman.example.simplegithub.ui.search
 
+import android.arch.lifecycle.ViewModelProviders
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.support.v7.widget.LinearLayoutManager
@@ -14,10 +15,8 @@ import com.androidhuman.example.simplegithub.api.provideGithubApi
 import com.androidhuman.example.simplegithub.data.provideSearchHistoryDao
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
-import com.androidhuman.example.simplegithub.extensions.runOnIOScheduler
 import com.androidhuman.example.simplegithub.ui.repo.RepositoryActivity
 import com.jakewharton.rxbinding2.support.v7.widget.queryTextChangeEvents
-import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import kotlinx.android.synthetic.main.activity_search.*
 import org.jetbrains.anko.startActivity
@@ -32,10 +31,6 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
         SearchAdapter().apply { setItemClickListener(this@SearchActivity) }
     }
 
-    internal val api by lazy { provideGithubApi(this@SearchActivity) }
-
-    internal val searchHistoryDao by lazy { provideSearchHistoryDao(this) }
-
     internal val disposables = AutoClearedDisposable(this)
 
     // 뷰 이벤트에 대한 disposable 객체는 따로 관리
@@ -45,9 +40,22 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
         alwaysClearOnStop = false
     )
 
+    internal val viewModelFactory by lazy {
+        SearchViewModelFactory(
+            provideGithubApi(this),
+            provideSearchHistoryDao(this)
+        )
+    }
+
+    lateinit var viewModel: SearchViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_search)
+
+        viewModel = ViewModelProviders.of(
+            this, viewModelFactory
+        )[SearchViewModel::class.java]
 
         // 라이프사이클 옵저버 등록
         lifecycle += disposables
@@ -57,6 +65,30 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
             layoutManager = LinearLayoutManager(this@SearchActivity)
             adapter = this@SearchActivity.adapter
         }
+
+        viewDisposables += viewModel.searchResult
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                with(adapter) {
+                    if (it.isNotEmpty) setItems(it.value)
+                    else clearItems()
+                    notifyDataSetChanged()
+                }
+            }
+
+        viewDisposables += viewModel.message
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it.isNotEmpty) showError(it.value)
+                else hideError()
+            }
+
+        viewDisposables += viewModel.isLoading
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it) showProgress()
+                else hideProgress()
+            }
     }
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -81,19 +113,12 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
                 searchRepository(it)
             }
 
-        with(menuSearch) {
-            setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
-                override fun onMenuItemActionExpand(item: MenuItem?) = true
-
-                override fun onMenuItemActionCollapse(item: MenuItem?): Boolean {
-                    if ("" == searchView.query) {
-                        finish()
-                    }
-                    return true
-                }
-            })
-            expandActionView()
-        }
+        viewDisposables += viewModel.lastSearchKeyword
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it.isNotEmpty) updateTitle(it.value)
+                else menuSearch.expandActionView()
+            }
 
         return true
     }
@@ -107,7 +132,7 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     override fun onItemClick(repository: GithubRepo) {
-        disposables += runOnIOScheduler { searchHistoryDao.add(repository) }
+        disposables += viewModel.addToSearchHistory(repository)
         startActivity<RepositoryActivity>(
             RepositoryActivity.KEY_USER_LOGIN to repository.owner.login,
             RepositoryActivity.KEY_REPO_NAME to repository.name
@@ -115,27 +140,7 @@ class SearchActivity : AppCompatActivity(), SearchAdapter.ItemClickListener {
     }
 
     private fun searchRepository(query: String) {
-        disposables += api.searchRepository(query)
-            .flatMap {
-                if (0 == it.totalCount) {
-                    Observable.error(IllegalStateException("No search Result"))
-                } else {
-                    Observable.just(it.items)
-                }
-            }
-            .observeOn(AndroidSchedulers.mainThread())
-            .doOnSubscribe {
-                clearResults()
-                hideError()
-                showProgress()
-            }
-            .doOnTerminate { hideProgress() }
-            .subscribe({
-                with(adapter) {
-                    setItems(it)
-                    notifyDataSetChanged()
-                }
-            }) { showError(it.message) }
+        disposables += viewModel.searchRepository(query)
     }
 
     private fun updateTitle(query: String) {

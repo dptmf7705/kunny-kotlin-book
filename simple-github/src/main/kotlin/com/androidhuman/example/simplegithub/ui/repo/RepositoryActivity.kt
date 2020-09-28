@@ -1,5 +1,6 @@
 package com.androidhuman.example.simplegithub.ui.repo
 
+import android.arch.lifecycle.ViewModelProviders
 import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.View
@@ -23,8 +24,6 @@ class RepositoryActivity : AppCompatActivity() {
         const val KEY_REPO_NAME = "repo_name"
     }
 
-    internal val api by lazy { provideGithubApi(this@RepositoryActivity) }
-
     internal val dateFormatInResponse = SimpleDateFormat(
         "yyyy-MM-dd'T'HH:mm:ssX", Locale.getDefault()
     )
@@ -35,28 +34,33 @@ class RepositoryActivity : AppCompatActivity() {
 
     internal val disposables = AutoClearedDisposable(this)
 
+    internal val viewDisposable = AutoClearedDisposable(
+        lifecycleOwner = this,
+        alwaysClearOnStop = false
+    )
+
+    internal val viewModelFactory by lazy {
+        RepositoryViewModelFactory(provideGithubApi(this))
+    }
+
+    lateinit var viewModel: RepositoryViewModel
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_repository)
 
+        viewModel = ViewModelProviders.of(
+            this, viewModelFactory
+        )[RepositoryViewModel::class.java]
+
         lifecycle += disposables
+        lifecycle += viewDisposable
 
-        val login = intent.getStringExtra(KEY_USER_LOGIN)
-            ?: throw IllegalArgumentException("No login info exists in extras")
-
-        val repo = intent.getStringExtra(KEY_REPO_NAME)
-            ?: throw IllegalArgumentException("No repo info exists in extras")
-
-        showRepositoryInfo(login, repo)
-    }
-
-    private fun showRepositoryInfo(login: String, repoName: String) {
-        disposables += api.getRepository(login, repoName)
+        viewDisposable += viewModel.repository
+            .filter { it.isNotEmpty }
+            .map { it.value }
             .observeOn(AndroidSchedulers.mainThread())
-            .doOnSubscribe { showProgress() }
-            .doOnError { hideProgress(false) }
-            .doOnComplete { hideProgress(true) }
-            .subscribe({ repo ->
+            .subscribe { repo ->
                 GlideApp.with(this@RepositoryActivity)
                     .load(repo.owner.avatarUrl)
                     .into(ivActivityRepositoryProfile)
@@ -72,9 +76,11 @@ class RepositoryActivity : AppCompatActivity() {
                 }
 
                 if (null == repo.language) {
-                    tvActivityRepositoryLanguage.setText(R.string.no_language_specified)
+                    tvActivityRepositoryLanguage
+                        .setText(R.string.no_language_specified)
                 } else {
-                    tvActivityRepositoryLanguage.text = repo.language
+                    tvActivityRepositoryLanguage.text =
+                        repo.language
                 }
 
                 try {
@@ -85,16 +91,42 @@ class RepositoryActivity : AppCompatActivity() {
                     tvActivityRepositoryLastUpdate.text =
                         getString(R.string.unknown)
                 }
-            }) { showError(it.message) }
+            }
+
+        viewDisposable += viewModel.message
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { showError(it) }
+
+        viewDisposable += viewModel.isContentVisible
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe { setContentVisibility(it) }
+
+        viewDisposable += viewModel.isLoading
+            .observeOn(AndroidSchedulers.mainThread())
+            .subscribe {
+                if (it) showProgress()
+                else hideProgress()
+            }
+
+        val login = intent.getStringExtra(KEY_USER_LOGIN)
+            ?: throw IllegalArgumentException("No login info exists in extras")
+
+        val repo = intent.getStringExtra(KEY_REPO_NAME)
+            ?: throw IllegalArgumentException("No repo info exists in extras")
+
+        disposables += viewModel.requestRepositoryInfo(login, repo)
+    }
+
+    private fun setContentVisibility(visible: Boolean) {
+        llActivityRepositoryContent.visibility =
+            if (visible) View.VISIBLE else View.GONE
     }
 
     private fun showProgress() {
-        llActivityRepositoryContent.visibility = View.GONE
         pbActivityRepository.visibility = View.VISIBLE
     }
 
-    private fun hideProgress(isSucceed: Boolean) {
-        llActivityRepositoryContent.visibility = if (isSucceed) View.VISIBLE else View.GONE
+    private fun hideProgress() {
         pbActivityRepository.visibility = View.GONE
     }
 
