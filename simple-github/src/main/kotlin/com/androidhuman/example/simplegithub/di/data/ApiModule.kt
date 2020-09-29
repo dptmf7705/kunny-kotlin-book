@@ -1,4 +1,4 @@
-package com.androidhuman.example.simplegithub.di
+package com.androidhuman.example.simplegithub.di.data
 
 import com.androidhuman.example.simplegithub.api.AuthApi
 import com.androidhuman.example.simplegithub.api.GithubApi

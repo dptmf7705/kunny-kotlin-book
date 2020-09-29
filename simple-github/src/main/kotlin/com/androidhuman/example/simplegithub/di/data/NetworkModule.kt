@@ -1,6 +1,6 @@
-package com.androidhuman.example.simplegithub.di
+package com.androidhuman.example.simplegithub.di.data
 
-import com.androidhuman.example.simplegithub.AuthInterceptor
+import com.androidhuman.example.simplegithub.data.AuthInterceptor
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
 import dagger.Module
 import dagger.Provides

@@ -2,6 +2,9 @@ package com.androidhuman.example.simplegithub.di
 
 import android.app.Application
 import com.androidhuman.example.simplegithub.SimpleGithubApp
+import com.androidhuman.example.simplegithub.di.data.ApiModule
+import com.androidhuman.example.simplegithub.di.data.LocalDataModule
+import com.androidhuman.example.simplegithub.di.data.NetworkModule
 import dagger.BindsInstance
 import dagger.Component
 import dagger.android.AndroidInjector
