@@ -9,6 +9,7 @@ import com.androidhuman.example.simplegithub.api.GithubApi
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.GlideApp
+import dagger.android.support.DaggerAppCompatActivity
 import io.reactivex.android.schedulers.AndroidSchedulers
 import kotlinx.android.synthetic.main.activity_repository.*
 import java.text.ParseException
@@ -16,7 +17,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import javax.inject.Inject
 
-class RepositoryActivity : AppCompatActivity() {
+class RepositoryActivity : DaggerAppCompatActivity() {
 
     companion object {
 
@@ -41,21 +42,11 @@ class RepositoryActivity : AppCompatActivity() {
     )
 
     @Inject
-    lateinit var githubApi: GithubApi
-
-    internal val viewModelFactory by lazy {
-        RepositoryViewModelFactory(githubApi)
-    }
-
     lateinit var viewModel: RepositoryViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_repository)
-
-        viewModel = ViewModelProviders.of(
-            this, viewModelFactory
-        )[RepositoryViewModel::class.java]
 
         lifecycle += disposables
         lifecycle += viewDisposable

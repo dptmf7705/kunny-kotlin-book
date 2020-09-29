@@ -1,19 +1,16 @@
 package com.androidhuman.example.simplegithub.ui.signin
 
-import android.arch.lifecycle.ViewModelProviders
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.support.customtabs.CustomTabsIntent
-import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.AuthApi
-import com.androidhuman.example.simplegithub.data.AuthTokenProvider
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.main.MainActivity
+import dagger.android.support.DaggerAppCompatActivity
 import io.reactivex.android.schedulers.AndroidSchedulers
 import kotlinx.android.synthetic.main.activity_sign_in.*
 import org.jetbrains.anko.clearTask
@@ -22,7 +19,7 @@ import org.jetbrains.anko.longToast
 import org.jetbrains.anko.newTask
 import javax.inject.Inject
 
-class SignInActivity : AppCompatActivity() {
+class SignInActivity : DaggerAppCompatActivity() {
 
     internal val disposables = AutoClearedDisposable(this)
 
@@ -32,24 +29,11 @@ class SignInActivity : AppCompatActivity() {
     )
 
     @Inject
-    lateinit var authApi: AuthApi
-
-    @Inject
-    lateinit var authTokenProvider: AuthTokenProvider
-
-    internal val viewModelFactory by lazy {
-        SignInViewModelFactory(authApi, authTokenProvider)
-    }
-
     lateinit var viewModel: SignInViewModel
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_sign_in)
-
-        viewModel = ViewModelProviders.of(
-            this, viewModelFactory
-        )[SignInViewModel::class.java]
 
         // AutoClearedDisposable 객체를 라이프 사이클 옵저버로 등록
         lifecycle += disposables
