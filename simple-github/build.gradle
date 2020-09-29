@@ -57,6 +57,11 @@ dependencies {
     implementation "android.arch.persistence.room:runtime:$archComponentVersion"
     implementation "android.arch.persistence.room:rxjava2:$archComponentVersion"
     kapt "android.arch.persistence.room:compiler:$archComponentVersion"
+    implementation "com.google.dagger:dagger:$daggerVersion"
+    implementation "com.google.dagger:dagger-android:$daggerVersion"
+    implementation "com.google.dagger:dagger-android-support:$daggerVersion"
+    kapt "com.google.dagger:dagger-android-processor:$daggerVersion"
+    kapt "com.google.dagger:dagger-compiler:$daggerVersion"
 
     annotationProcessor "com.github.bumptech.glide:compiler:$glideVersion"
 }

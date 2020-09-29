@@ -130,10 +130,9 @@ class RepositoryActivity : AppCompatActivity() {
         pbActivityRepository.visibility = View.GONE
     }
 
-    private fun showError(message: String?) {
+    private fun showError(message: String?) =
         with(tvActivityRepositoryMessage) {
             text = message ?: "Unexpected error."
             visibility = View.VISIBLE
         }
-    }
 }
