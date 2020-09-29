@@ -9,7 +9,7 @@ import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.BuildConfig
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.provideAuthApi
+import com.androidhuman.example.simplegithub.api.AuthApi
 import com.androidhuman.example.simplegithub.data.AuthTokenProvider
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
@@ -20,6 +20,7 @@ import org.jetbrains.anko.clearTask
 import org.jetbrains.anko.intentFor
 import org.jetbrains.anko.longToast
 import org.jetbrains.anko.newTask
+import javax.inject.Inject
 
 class SignInActivity : AppCompatActivity() {
 
@@ -30,8 +31,14 @@ class SignInActivity : AppCompatActivity() {
         alwaysClearOnStop = false
     )
 
+    @Inject
+    lateinit var authApi: AuthApi
+
+    @Inject
+    lateinit var authTokenProvider: AuthTokenProvider
+
     internal val viewModelFactory by lazy {
-        SignInViewModelFactory(provideAuthApi(), AuthTokenProvider(this))
+        SignInViewModelFactory(authApi, authTokenProvider)
     }
 
     lateinit var viewModel: SignInViewModel

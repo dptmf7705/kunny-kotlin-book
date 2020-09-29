@@ -5,7 +5,7 @@ import android.os.Bundle
 import android.support.v7.app.AppCompatActivity
 import android.view.View
 import com.androidhuman.example.simplegithub.R
-import com.androidhuman.example.simplegithub.api.provideGithubApi
+import com.androidhuman.example.simplegithub.api.GithubApi
 import com.androidhuman.example.simplegithub.extensions.AutoClearedDisposable
 import com.androidhuman.example.simplegithub.extensions.plusAssign
 import com.androidhuman.example.simplegithub.ui.GlideApp
@@ -14,6 +14,7 @@ import kotlinx.android.synthetic.main.activity_repository.*
 import java.text.ParseException
 import java.text.SimpleDateFormat
 import java.util.*
+import javax.inject.Inject
 
 class RepositoryActivity : AppCompatActivity() {
 
@@ -39,8 +40,11 @@ class RepositoryActivity : AppCompatActivity() {
         alwaysClearOnStop = false
     )
 
+    @Inject
+    lateinit var githubApi: GithubApi
+
     internal val viewModelFactory by lazy {
-        RepositoryViewModelFactory(provideGithubApi(this))
+        RepositoryViewModelFactory(githubApi)
     }
 
     lateinit var viewModel: RepositoryViewModel
